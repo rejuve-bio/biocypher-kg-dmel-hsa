@@ -19,9 +19,9 @@ class PrologWriter:
         self.bcy = BioCypher(schema_config_path=schema_config,
                              biocypher_config_path=biocypher_config)
 
-        self.onotology = self.bcy._get_ontology()
+        self.ontology = self.bcy._get_ontology()
         self.create_edge_types()
-        #self.excluded_properties = ["licence", "version", "source"]
+        #self.excluded_properties = ["license", "version", "source"]
         self.excluded_properties = []
 
 
@@ -30,19 +30,22 @@ class PrologWriter:
         self.edge_node_types = {}
 
         for k, v in schema.items():
-            if v["represented_as"] == "edge": #(: (label $x $y) (-> source_type target_type
-                edge_type = self.convert_input_labels(k)
-
+            if v["represented_as"] == "edge":
+                source_type = v.get("source", None)
+                target_type = v.get("target", None)
                 # ## TODO fix this in the scheme config
-                if isinstance(v["input_label"], list):
-                    label = self.convert_input_labels(v["input_label"][0])
-                    source_type = self.convert_input_labels(v["source"][0])
-                    target_type = self.convert_input_labels(v["target"][0])
-                else:
-                    label = self.convert_input_labels(v["input_label"])
-                    source_type = self.convert_input_labels(v["source"])
-                    target_type = self.convert_input_labels(v["target"])
-                self.edge_node_types[label.lower()] = {"source": source_type.lower(), "target": target_type.lower()}
+                if source_type is not None and target_type is not None:
+                    if isinstance(v["input_label"], list):
+                        label = self.sanitize_text(v["input_label"][0])
+                        source_type = self.sanitize_text(v["source"][0])
+                        target_type = self.sanitize_text(v["target"][0])
+                    else:
+                        label = self.sanitize_text(v["input_label"])
+                        source_type = self.sanitize_text(v["source"])
+                        target_type = self.sanitize_text(v["target"])
+                    output_label = v.get("output_label", None)
+                    self.edge_node_types[label.lower()] = {"source": source_type.lower(), "target": target_type.lower(),
+                                                           "output_label": output_label.lower() if output_label is not None else None}
 
     def write_nodes(self, nodes, path_prefix=None, create_dir=True):
         if path_prefix is not None:
@@ -84,8 +87,8 @@ class PrologWriter:
         if "." in label:
             label = label.split(".")[1]
         label = label.lower()
-        id = id.lower()
-        def_out = f"{self.convert_input_labels(label)}({id})"
+        id = self.sanitize_text(id.lower())
+        def_out = f"{self.sanitize_text(label)}({id})"
         return self.write_property(def_out, properties)
 
     def write_edge(self, edge):
@@ -98,6 +101,13 @@ class PrologWriter:
         output_label = self.edge_node_types[label]["output_label"]
         if output_label is not None:
             label = output_label.lower()
+        source_id = self.sanitize_text(source_id)
+        target_id = self.sanitize_text(target_id)
+        label = self.sanitize_text(label)
+        if source_type == "ontology_term":
+            source_type = source_id.split('_')[0]
+        if target_type == "ontology_term":
+            target_type = target_id.split('_')[0]
         def_out = f"{label}({source_type}({source_id}), {target_type}({target_id}))"
         return self.write_property(def_out, properties)
 
@@ -106,38 +116,58 @@ class PrologWriter:
         out_str = [f"{def_out}."]
         for k, v in property.items():
             if k in self.excluded_properties or v is None or v == "": continue
-            if isinstance(v, list):
+            if k == 'biological_context':
+                try:
+                    prop = self.sanitize_text(v)
+                    ontology = prop.split('_')[0]
+                    out_str.append(f'{k}({def_out}, {ontology}({prop})).')
+                except Exception as e:
+                    print(f"An error occurred while processing the biological context '{v}': {e}.")
+                    continue
+            elif isinstance(v, list):
                 prop = "["
                 for i, e in enumerate(v):
-                    prop += f'{self.check_property(e)}'
+                    prop += f'{self.sanitize_text(e)}'
                     if i != len(v) - 1: prop += ","
-                prop += "]."
+                prop += "]"
+                out_str.append(f'{k}({def_out}, {prop}).')
             elif isinstance(v, dict):
                 prop = f"{k}({def_out})."
                 out_str.extend(self.write_property(prop, v))
             else:
-                out_str.append(f'{k}({def_out}, {self.check_property(v)}).')
+                prop = self.sanitize_text(v)
+                if prop is not None:
+                    out_str.append(f'{k}({def_out}, {prop}).')
         return out_str
 
-    def check_property(self, prop):
-        if isinstance(prop, str):
-            if " " in prop:
-                prop = prop.replace(" ", "_")
-
-            special_chars = ["(", ")"]
-            escape_char = "\\"
-            return "".join(escape_char + c if c in special_chars or c == escape_char else c for c in prop)
-
+    def sanitize_text(self, prop):
+        replace_chars = [" ", "-", ":"]
+        omit_chars = ["(", ")", "+", "."]
+        if isinstance(prop, str):        
+            for c in replace_chars:
+                prop = prop.replace(c, "_").lower()
+            for c in omit_chars:
+                prop = prop.replace(c, "").lower()         
+            prop = prop.strip("_")
+            # sanitizes each string separated by comma ','
+            if "," in prop:
+                prop = ",".join([self.sanitize_text(p) for p in prop.split(',') if self.sanitize_text(p) not in ["", None]])
+            # removes multiple under scores '_'
+            prop = "_".join([p for p in prop.split('_') if p != ""])
+            if prop == "":
+                return None
+            try:
+                float(prop)
+                return prop # It's a numeric string, return as is
+            except ValueError:
+                # Check if the first character is a digit
+                if prop[0].isdigit():
+                    return f"'{prop}'"
+        elif isinstance(prop, list):
+            for i in range(len(prop)):
+                prop[i] = self.sanitize_text(prop[i])
+            prop = [p for p in prop if p != None]
         return prop
-
-    def convert_input_labels(self, label, replace_char="_"):
-        """
-        A method that removes spaces in input labels and replaces them with replace_char
-        :param label: Input label of a node or edge
-        :param replace_char: the character to replace spaces with
-        :return:
-        """
-        return label.replace(" ", replace_char)
 
     def get_parent(self, G, node):
         """

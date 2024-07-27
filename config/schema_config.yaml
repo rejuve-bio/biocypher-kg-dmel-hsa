@@ -15,6 +15,7 @@ position entity:
     start: int
     end: int
 
+
 coding element:
   represented_as: node
   is_a: position entity
@@ -246,6 +247,8 @@ regulatory region:
 
 # ---
 # ontologies
+
+# Gene Ontology
 go:
   is_a: ontology term
   represented_as: node
@@ -278,6 +281,39 @@ clo:
     clo_definition: str
     clo_synonyms: str[]
 
+# Cell Ontology
+cl:
+  is_a: ontology term
+  represented_as: node
+  input_label: cl
+  properties:
+    cl_id: str
+    cl_name: str
+    cl_definition: str
+    cl_synonyms: str[]
+
+# Experimental Factor Ontology
+efo:
+  is_a: ontology term
+  represented_as: node
+  input_label: efo
+  properties:
+    efo_id: str
+    efo_name: str
+    efo_definition: str
+    efo_synonyms: str[]
+
+# BRENDA Tissue Ontology
+bto:
+  is_a: ontology term
+  represented_as: node
+  input_label: bto
+  properties:
+    bto_id: str
+    bto_name: str
+    bto_definition: str
+    bto_synonyms: str[]
+
 motif:
   represented_as: node
   is_a: epigenomic feature
@@ -304,33 +340,6 @@ tad:
   inherit_properties: true
   properties:
         genes: str[]
-
-chromatin state:
-  represented_as: node
-  is_a: epigenomic feature
-  inherit_properties: true
-  input_label: chromatin_state
-  properties:
-    state: str
-
-dnase hypersensitivity site:
-  represented_as: node
-  is_a: epigenomic feature
-  inherit_properties: true
-  input_label: dnase_hypersensitivity_site
-  description: >-
-    A region of chromatin that is sensitive to cleavage by the enzyme DNase I
-
-histone modification:
-  represented_as: node
-  is_a: epigenomic feature
-  inherit_properties: true
-  input_label: histone_modification
-  description: >
-    A post-translational modification of histone proteins e.g methylation, acetylation, phosphorylation
-  properties:
-    modification: str
-    modification_type: str
 
 # ---
 # Associations
@@ -447,8 +456,67 @@ post translational interaction:
   properties:
     score: float
 
+expressed in:
+  description: >-
+      holds between a gene and an ontology term in which it is expressed
+  is_a: expression
+  inherit_properties: true
+  represented_as: edge
+  input_label: expressed_in
+  source: gene
+  target: ontology term
+  properties:
+    score: float
+    p_value: float
+
 # ---
 # annotation
+
+has part:
+  is_a: annotation
+  inherit_properties: true
+  represented_as: edge
+  input_label: has_part
+  source: ontology term
+  target: ontology term
+
+part of:
+  is_a: annotation
+  inherit_properties: true
+  represented_as: edge
+  input_label: part_of
+  source: ontology term
+  target: ontology term
+
+subclass of:
+  is_a: annotation
+  inherit_properties: true
+  represented_as: edge
+  input_label: subclass_of
+  source: ontology term
+  target: ontology term
+  properties:
+    rel_type: str
+
+cl capable of:
+  is_a: annotation
+  represented_as: edge
+  input_label: cl_capable_of
+  output_label: capable_of
+  description: >-
+    Represents a functional capability relationship between a CL term and a GO term.
+  source: cl
+  target: go
+
+cl part of:
+  is_a: part of
+  represented_as: edge
+  input_label: cl_part_of
+  output_label: part_of
+  description: >-
+    Represents a part-whole relationship between a CL term and an UBERON term.
+  source: cl
+  target: uberon
 
 gene to pathway association:
   description: >-
@@ -480,38 +548,51 @@ child pathway of:
     source: pathway
     target: pathway
 
-# Subtype relationships
-subtype_of:
-  is_a: annotation
+bto subclass of:
+  is_a: subclass of
   represented_as: edge
-  input_label: subtype_of
-  source: ontology term
-  target: ontology term
-  description: >-
-    Represents the subtype relationship between two ontology terms,
-    where the source term is a subtype of the target term.
+  input_label: bto_subclass_of
+  output_label: subclass_of
+  source: bto
+  target: bto
 
-uberon_subtype_of:
-  is_a: subtype_of
+efo subclass of:
+  is_a: subclass of
   represented_as: edge
-  input_label: uberon_subtype_of
-  output_label: subtype_of
+  input_label: efo_subclass_of
+  output_label: subclass_of
+  source: efo
+  target: efo
+
+uberon subclass of:
+  is_a: subclass of
+  represented_as: edge
+  input_label: uberon_subclass_of
+  output_label: subclass_of
   source: uberon
   target: uberon
 
-clo_subtype_of:
-  is_a: subtype_of
+clo subclass of:
+  is_a: subclass of
   represented_as: edge
-  input_label: clo_subtype_of
-  output_label: subtype_of
+  input_label: clo_subclass_of
+  output_label: subclass_of
   source: clo
   target: clo
 
-go_subtype_of:
-  is_a: subtype_of
+cl subclass of:
+  is_a: subclass of
   represented_as: edge
-  input_label: go_subtype_of
-  output_label: subtype_of
+  input_label: cl_subclass_of
+  output_label: subclass_of
+  source: cl
+  target: cl
+
+go subclass of:
+  is_a: subclass of
+  represented_as: edge
+  input_label: go_subclass_of
+  output_label: subclass_of
   source: go
   target: go
 
@@ -520,7 +601,7 @@ go gene product:
   inherit_properties: true
   represented_as: edge
   input_label: go_gene_product
-  source: gene ontology
+  source: go
   target: protein
   properties:
     qualifier: obj
@@ -548,35 +629,6 @@ go rna:
   output_label: belongs_to
   source: non coding rna
   target: go
-
-ontology has part:
-  is_a: annotation
-  inherit_properties: true
-  represented_as: edge
-  input_label: ontology_has_part
-  output_label: has_part
-  source: ontology term
-  target: ontology term
-
-ontology part of:
-  is_a: annotation
-  inherit_properties: true
-  represented_as: edge
-  input_label: ontology_part_of
-  output_label: part_of
-  source: ontology term
-  target: ontology term
-
-ontology subclass of:
-  is_a: annotation
-  inherit_properties: true
-  represented_as: edge
-  input_label: ontology_subclass_of
-  output_label: subclass_of
-  source: ontology term
-  target: ontology term
-  properties:
-    rel_type: str
 
 # ---
 # regulatory association
@@ -660,7 +712,7 @@ gtex variant to gene expression association:
   is_a: related to at instance level
   represented_as: edge
   input_label: gtex_variant_gene
-  output_label: correlates_with
+  output_label: eqtl_association
   source: snp
   target: gene
   properties:
@@ -750,3 +802,66 @@ located on chain:
   input_label: located_on_chain
   source: position_entity
   target: chromosome_chain
+
+transcription factor to snp association:
+  is_a: related to at instance level
+  description: holds between a transcription factor and a snp if the snp occurs in a transcription factor binding site (tfbs)
+  represented_as: edge
+  input_label: tfbs_snp
+  source: gene
+  target: snp
+  properties:
+    effect: str
+    score: float
+    source: str
+    source_url: str
+
+gene in tad region:
+  is_a: related to at instance level
+  description: holds between a tad and a gene that is in the tad region
+  represented_as: edge
+  input_label: in_tad_region
+  source: gene
+  target: tad
+
+activity by contact:
+  description: >-
+    An association between a variant in a regulatory region and a gene it predicted by the ABC model (Fulco et.al 2019)
+  is_a: regulatory association
+  inherit_properties: true
+  represented_as: edge
+  input_label: activity_by_contact
+  source: snp
+  target: gene
+  properties:
+    score: float
+    biological_context: str
+
+chromatin state:
+  is_a: related to at instance level
+  represented_as: edge
+  input_label: chromatin_state
+  source: snp
+  target: uberon #TODO replace by cell ontology
+  properties:
+    state: str
+
+dnase I hotspot:
+  is_a: related to at instance level
+  description: >-
+    A region of chromatin that is sensitive to cleavage by the enzyme DNase I
+  represented_as: edge
+  input_label: in_dnase_I_hotspot
+  source: snp
+  target: uberon #TODO replace by cell ontology
+
+histone modification:
+  is_a: related to at instance level
+  description: >-
+    A post-translational modification of histone proteins e.g methylation, acetylation, phosphorylation
+  represented_as: edge
+  input_label: histone_modification
+  source: snp
+  target: uberon #TODO replace by cell ontology
+  properties:
+    modification: str
