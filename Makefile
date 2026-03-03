@@ -47,6 +47,10 @@ run-interactive: check-uv
 	ADAPTERS_CONFIG=$${ADAPTERS_CONFIG:-./config/hsa/hsa_adapters_config_sample.yaml}; \
 	echo "Using adapters config: $$ADAPTERS_CONFIG"; \
 	echo ""; \
+	read -p "📊 Enter schema config path [./config/hsa/hsa_schema_config.yaml]: " SCHEMA_CONFIG; \
+	SCHEMA_CONFIG=$${SCHEMA_CONFIG:-./config/hsa/hsa_schema_config.yaml}; \
+	echo "Using schema config: $$SCHEMA_CONFIG"; \
+	echo ""; \
 	read -p "🧬 Enter dbSNP RSIDs path [./aux_files/hsa/sample_dbsnp_rsids.pkl]: " DBSNP_RSIDS; \
 	DBSNP_RSIDS=$${DBSNP_RSIDS:-./aux_files/hsa/sample_dbsnp_rsids.pkl}; \
 	echo "Using dbSNP RSIDs: $$DBSNP_RSIDS"; \
@@ -84,6 +88,7 @@ run-interactive: check-uv
 	uv run python create_knowledge_graph.py \
 		--output-dir "$$OUTPUT_DIR" \
 		--adapters-config "$$ADAPTERS_CONFIG" \
+		--schema-config "$$SCHEMA_CONFIG" \
 		--dbsnp-rsids "$$DBSNP_RSIDS" \
 		--dbsnp-pos "$$DBSNP_POS" \
 		--writer-type "$$WRITER_TYPE" \
