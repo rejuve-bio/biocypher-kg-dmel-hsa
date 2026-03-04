@@ -1,75 +1,72 @@
 import sys
 import argparse
 import subprocess
+import os
 from pathlib import Path
 
-def run_mork_query(file_path, pattern, template):
-    is_metta = file_path.endswith(".metta")
-    space_name = file_path
-    if space_name.endswith(".act"): space_name = space_name[:-4]
-    if space_name.endswith(".metta"): space_name = space_name[:-6]
+def run_mork_query(target_space, pattern, template):
+    metta_script = f'(exec 0 (I (ACT {target_space} {pattern})) (, ({template})))'
 
-    if is_metta:
-        metta_script = f"(exec 0 (I (BTM {pattern})) (, ({template})))"
-        mork_run_cmd = f"/app/MORK/target/release/mork run --aux-path /dev/shm/{file_path} /dev/shm/query.metta"
-    else:
-        metta_script = f"(exec 0 (I (ACT {space_name} {pattern})) (, ({template})))"
-        mork_run_cmd = "/app/MORK/target/release/mork run /dev/shm/query.metta"
-    
     sh_cmd = (
-        f"mkdir -p /dev/shm/$(dirname '{file_path}') && "
-        f"cp /app/data/{file_path} /dev/shm/{file_path} && "
+        f"[ -L /dev/shm/{target_space}.act ] || ln -s /app/data/{target_space}.act /dev/shm/{target_space}.act && "
         f"echo '{metta_script}' > /dev/shm/query.metta && "
-        f"{mork_run_cmd}"
+        f"/app/MORK/target/release/mork run /dev/shm/query.metta"
     )
 
     cmd = ["docker", "compose", "run", "--rm", "-T", "mork", "sh", "-c", sh_cmd]
-    
-    try:
-        result = subprocess.run(cmd, capture_output=True, text=True)
-        if result.returncode == 0:
-            return result.stdout
-        else:
-            return f"Error ({result.returncode}):\n{result.stderr}\n{result.stdout}"
-    except Exception as e:
-        return f"Execution fail: {e}"
+
+    result = subprocess.run(cmd, capture_output=True, text=True)
+    if result.returncode == 0:
+        output = result.stdout
+        if "result:" in output:
+            output = output.split("result:")[-1].strip()
+        return output
+    return f"Error ({result.returncode}):\n{result.stderr}\n{result.stdout}"
 
 def main():
-    parser = argparse.ArgumentParser(description="MORK REPL for BioAtomSpace queries.")
+    parser = argparse.ArgumentParser(description="MORK REPL for BioAtomSpace.")
+    parser.add_argument("data_dir", nargs="?", default=os.environ.get("MORK_DATA_DIR", "output"))
     args = parser.parse_args()
 
-    print("\n--- MORK BioAtomSpace REPL ---")
+    data_path = Path(args.data_dir).resolve()
+    
+    if data_path.is_file():
+        data_dir = data_path.parent
+        target = data_path.stem
+    else:
+        data_dir = data_path
+        target = "annotation"
+
+    os.environ["MORK_DATA_DIR"] = str(data_dir)
+    
+    act_file = data_dir / f"{target}.act"
+    if not act_file.exists():
+        print(f"Error: Could not find '{act_file}'")
+        print("Please run 'bash scripts/build_act.sh <dir>' first to generate it.")
+        sys.exit(1)
+
+    print("\n" + "="*50)
+    print(f"MORK UNIFIED REPL (Space: {target})")
     print("Type 'quit' or 'exit' to exit.")
+    print("="*50)
     
     while True:
         try:
-            print("\n" + "="*40)
-            user_input_path = input("File to load (e.g. reactome/nodes.act or .metta)> ").strip()
-            if user_input_path.lower() in ('quit', 'exit'): break
-            if not user_input_path: continue
-
-            pattern = input("Pattern (e.g. (Gene $g))> ").strip()
+            pattern = input("\nQuery Pattern (e.g. (Gene $g))> ").strip()
             if pattern.lower() in ('quit', 'exit'): break
             if not pattern: continue
 
-            template = input("Return (e.g. $g)> ").strip()
+            template = input("Return Template (e.g. $g)> ").strip()
             if template.lower() in ('quit', 'exit'): break
             if not template: template = "(result)"
 
-            normalized_path = user_input_path.replace("output/", "", 1)
-            if normalized_path.startswith("/app/data/"): 
-                normalized_path = normalized_path.replace("/app/data/", "", 1)
-            
-            if not normalized_path.endswith(".act") and not normalized_path.endswith(".metta"):
-                normalized_path += ".act"
-
-            print(f"Executing query on {normalized_path}...")
-            output = run_mork_query(normalized_path, pattern, template)
+            print(f"Searching {target}...")
+            output = run_mork_query(target, pattern, template)
             
             if output and output.strip():
-                 print(f"Result:\n{output.strip()}")
+                print(f"\nResult:\n{output.strip()}")
             else:
-                 print("Result: (no output returned)")
+                print("\nResult: (no matches found)")
                      
         except (KeyboardInterrupt, EOFError):
             print("\nExited!")
