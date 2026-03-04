@@ -12,6 +12,7 @@ from biocypher_metta.neo4j_csv_writer import *
 from biocypher_metta.kgx_writer import *
 from biocypher_metta.parquet_writer import ParquetWriter
 from biocypher_metta.networkx_writer import NetworkXWriter
+from biocypher_metta.processors import DBSNPProcessor
 from biocypher._logger import logger
 import typer
 import yaml
@@ -314,17 +315,17 @@ def main(
     ),
     dbsnp_rsids: Optional[Path] = typer.Option(
         None,
-        exists=True, 
-        file_okay=True, 
+        exists=True,
+        file_okay=True,
         dir_okay=False,
-        help="dbSNP rsids file (manual mode only)"
+        help="dbSNP rsids file (manual mode only, optional - uses DBSNPProcessor if not provided)"
     ),
     dbsnp_pos: Optional[Path] = typer.Option(
         None,
-        exists=True, 
-        file_okay=True, 
+        exists=True,
+        file_okay=True,
         dir_okay=False,
-        help="dbSNP positions file (manual mode only)"
+        help="dbSNP positions file (manual mode only, optional - uses DBSNPProcessor if not provided)"
     ),
     schema_config: Optional[Path] = typer.Option(
         None,
@@ -357,13 +358,13 @@ def main(
     """
     
     # Determine which mode we're in
-    manual_mode = all([adapters_config, dbsnp_rsids, dbsnp_pos, schema_config])
+    manual_mode = all([adapters_config, schema_config])
     species_mode = species is not None
-    
+
     if not manual_mode and not species_mode:
         logger.error("You must either:")
         logger.error("  1. Use --species flag with --output-dir (e.g., --species hsa --dataset sample --output-dir output_hsa)")
-        logger.error("  2. Provide all manual parameters (--output-dir, --adapters-config, --dbsnp-rsids, --dbsnp-pos, --schema-config)")
+        logger.error("  2. Provide all manual parameters (--output-dir, --adapters-config, --schema-config)")
         raise typer.Exit(1)
     
     # Validate that output_dir is provided
@@ -404,12 +405,31 @@ def main(
                 sp_dbsnp_pos = Path(config['dbsnp_pos'])
                 sp_schema_config = Path(config['schema_config'])
                 
-                # Process this species
-                logger.info(f"Loading dbsnp rsids map for {sp}")
-                sp_dbsnp_rsids_dict = pickle.load(open(sp_dbsnp_rsids, 'rb'))
-                logger.info(f"Loading dbsnp pos map for {sp}")
-                # sp_dbsnp_pos_dict = pickle.load(open(sp_dbsnp_pos, 'rb'))
-                sp_dbsnp_pos_dict = sp_dbsnp_rsids_dict
+                # Process this species - load dbSNP mappings
+                is_sample = 'sample' in str(sp_adapters_config).lower()
+                if is_sample:
+                    # Sample config: use DBSNPProcessor with sample cache
+                    logger.info(f"Sample config detected for {sp}: using DBSNPProcessor")
+                    sample_cache_dir = Path('aux_files/hsa/sample_dbsnp')
+                    if (sample_cache_dir / 'dbsnp_mapping.pkl').exists():
+                        try:
+                            dbsnp_proc = DBSNPProcessor(cache_dir=str(sample_cache_dir))
+                            dbsnp_proc.load_mapping()
+                            sp_dbsnp_rsids_dict, sp_dbsnp_pos_dict = dbsnp_proc.get_dict_wrappers()
+                            logger.info(f"Loaded {len(sp_dbsnp_rsids_dict):,} sample rsID mappings for {sp}")
+                        except Exception as e:
+                            logger.warning(f"Failed to load sample dbSNP mappings for {sp}: {e}")
+                            sp_dbsnp_rsids_dict = {}
+                            sp_dbsnp_pos_dict = {}
+                    else:
+                        logger.warning(f"Sample dbSNP cache not found, continuing without rsID mappings for {sp}")
+                        sp_dbsnp_rsids_dict = {}
+                        sp_dbsnp_pos_dict = {}
+                else:
+                    logger.info(f"Loading dbsnp rsids map for {sp}")
+                    sp_dbsnp_rsids_dict = pickle.load(open(sp_dbsnp_rsids, 'rb'))
+                    logger.info(f"Loading dbsnp pos map for {sp}")
+                    sp_dbsnp_pos_dict = sp_dbsnp_rsids_dict
                 
                 bc = get_writer(writer_type, sp_output_dir, sp_schema_config)
                 logger.info(f"Using {writer_type} writer for {sp}")
@@ -507,10 +527,35 @@ def main(
             schema_config = Path(config['schema_config'])
     
     # run the actual processing (same for both manual and species mode)
-    logger.info("Loading dbsnp rsids map")
-    dbsnp_rsids_dict = pickle.load(open(dbsnp_rsids, 'rb'))
-    logger.info("Loading dbsnp pos map")
-    dbsnp_pos_dict = pickle.load(open(dbsnp_pos, 'rb'))
+    is_sample_config = 'sample' in str(adapters_config).lower()
+    if is_sample_config:
+        # Sample config: use DBSNPProcessor with sample cache
+        logger.info("Sample config detected: using DBSNPProcessor with sample cache")
+        sample_cache_dir = Path('aux_files/hsa/sample_dbsnp')
+        if (sample_cache_dir / 'dbsnp_mapping.pkl').exists():
+            try:
+                dbsnp_processor = DBSNPProcessor(cache_dir=str(sample_cache_dir))
+                dbsnp_processor.load_mapping()
+                dbsnp_rsids_dict, dbsnp_pos_dict = dbsnp_processor.get_dict_wrappers()
+                logger.info(f"Loaded {len(dbsnp_rsids_dict):,} sample rsID mappings from processor")
+            except Exception as e:
+                logger.warning(f"Failed to load sample dbSNP mappings: {e}")
+                dbsnp_rsids_dict = {}
+                dbsnp_pos_dict = {}
+        else:
+            logger.warning("Sample dbSNP cache not found, continuing without rsID mappings")
+            dbsnp_rsids_dict = {}
+            dbsnp_pos_dict = {}
+    else:
+        if dbsnp_rsids and dbsnp_pos:
+            logger.info("Loading dbsnp rsids map")
+            dbsnp_rsids_dict = pickle.load(open(dbsnp_rsids, 'rb'))
+            logger.info("Loading dbsnp pos map")
+            dbsnp_pos_dict = pickle.load(open(dbsnp_pos, 'rb'))
+        else:
+            logger.warning("No dbSNP files provided, continuing without rsID mappings")
+            dbsnp_rsids_dict = {}
+            dbsnp_pos_dict = {}
 
     # Choose the writer based on user input or default to 'metta'
     #  Passed schema_config to get_writer
