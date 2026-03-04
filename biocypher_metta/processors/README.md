@@ -85,21 +85,27 @@ rsid_to_pos, pos_to_rsid = dbsnp.get_dict_wrappers()
 
 ### 3. EntrezEnsemblProcessor
 
-Maps between NCBI Entrez Gene IDs and Ensembl Gene IDs.
+Maps between NCBI Entrez Gene IDs and Ensembl Gene IDs, and provides gene alias dictionaries.
 
 **Data Sources:**
-- NCBI Gene Info
+- NCBI Gene Info (`Homo_sapiens.gene_info.gz`)
 - GENCODE annotations
 
 **Update Strategy:** Remote version checking (ETag, Last-Modified headers)
+
+**Mappings:**
+- Entrez Gene ID → Ensembl Gene ID (`entrez_to_ensembl`)
+- Gene aliases keyed by Ensembl ID and HGNC ID (`gene_aliases`)
+
+The gene alias dict is built from NCBI Gene Info fields: symbol, synonyms, dbxrefs (HGNC/Ensembl), nomenclature symbol, full name, and other designations. This replaces the need for a separate `Homo_sapiens.gene_info.gz` file and the `get_gene_alias()` method in `GencodeGeneAdapter` for human data. Dmel still uses its own file-based path (`Drosophila_melanogaster.gene_info.gz`).
 
 **Usage:**
 ```python
 from biocypher_metta.processors import EntrezEnsemblProcessor
 
-# Initialize processor (uses aux_files/entrez_ensembl by default)
+# Initialize processor (uses aux_files/hsa/entrez_ensembl by default)
 processor = EntrezEnsemblProcessor(
-    cache_dir='aux_files/entrez_ensembl',  # Default location
+    cache_dir='aux_files/hsa/entrez_ensembl',  # Default location
     update_interval_hours=168  # 7 days
 )
 
@@ -112,7 +118,19 @@ print(ensembl_id)  # ENSG00000141510
 
 # Reverse lookup
 entrez_id = processor.get_entrez_id('ENSG00000141510')
+
+# Access entrez→ensembl dict directly
+mapping = processor.entrez_to_ensembl  # {entrez_id: ensembl_id, ...}
+
+# Access gene aliases
+aliases = processor.gene_aliases  # {ensembl_id: [syns], hgnc_id: [syns], ...}
+
+# Lookup aliases for a specific gene
+tp53_aliases = processor.get_gene_aliases('ENSG00000141510')
+print(tp53_aliases)  # ['TP53', 'p53', 'tumor protein p53', ...]
 ```
+
+**Note:** The internal mapping format is nested (`{'entrez_to_ensembl': {...}, 'gene_aliases': {...}}`). Adapters should use the `entrez_to_ensembl` property instead of accessing `processor.mapping` directly. Legacy flat-format caches are auto-detected and re-fetched.
 
 ### 4. EnsemblUniProtProcessor
 
@@ -287,7 +305,7 @@ aux_files/
 │   │   ├── hgnc_mapping.pkl          # Gzip-compressed pickled mapping dictionary
 │   │   └── hgnc_version.json         # Metadata (timestamp, entries, etc.)
 │   ├── entrez_ensembl/
-│   │   ├── entrez_ensembl_mapping.pkl
+│   │   ├── entrez_ensembl_mapping.pkl # Contains entrez→ensembl + gene aliases
 │   │   └── entrez_ensembl_version.json
 │   ├── ensembl_uniprot/
 │   │   ├── ensembl_uniprot_mapping.pkl
@@ -295,11 +313,15 @@ aux_files/
 │   └── sample_dbsnp/
 │       ├── dbsnp_mapping.pkl
 │       └── dbsnp_version.json
+├── dmel/
+│   └── Drosophila_melanogaster.gene_info.gz  # Dmel gene aliases (file-based, not processor-managed)
 ├── go_subontology/                   # Species-agnostic, stays at top level
 │   ├── go_subontology_mapping.pkl
 │   └── go_subontology_version.json
 └── ... (legacy static pickle files)
 ```
+
+**Note:** For human, gene aliases are now included in the EntrezEnsemblProcessor cache — the separate `Homo_sapiens.gene_info.gz` file is no longer needed. Dmel still uses its own species-specific file.
 
 **Note:** All `.pkl` files are gzip-compressed to save space and reduce repository size. The processors automatically handle compression/decompression transparently. Legacy uncompressed pickle files are automatically detected and re-saved as compressed files on first load.
 
@@ -330,7 +352,7 @@ else:
 
 ## Integration with Adapters
 
-Adapters should use processors during initialization:
+Adapters should use processors during initialization. Use the `entrez_to_ensembl` property (not `.mapping` directly) to access the entrez→ensembl dict:
 
 ```python
 class MyAdapter(Adapter):
@@ -345,8 +367,10 @@ class MyAdapter(Adapter):
             self.processor = entrez_to_ensembl_processor
 
     def get_edges(self):
+        # Use .entrez_to_ensembl property for the flat dict
+        entrez_ensembl_dict = self.processor.entrez_to_ensembl
         for entrez_id in self.data:
-            ensembl_id = self.processor.get_ensembl_id(entrez_id)
+            ensembl_id = entrez_ensembl_dict.get(entrez_id)
             if ensembl_id:
                 # Process edge...
                 pass
