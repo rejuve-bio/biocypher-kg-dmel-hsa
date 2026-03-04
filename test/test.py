@@ -1,4 +1,3 @@
-import pickle
 from biocypher import BioCypher
 import pytest
 import yaml
@@ -6,6 +5,7 @@ import importlib
 import logging
 import os
 import sys
+from biocypher_metta.processors import DBSNPProcessor
 
 
 logging.basicConfig(level=logging.INFO)
@@ -89,15 +89,11 @@ def setup_class(request):
    
     # Load adapters config
     adapters_config_path = request.config.getoption("--adapters-config")
-    dbsnp_rsids = request.config.getoption("--dbsnp-rsids")
-    dbsnp_pos = request.config.getoption("--dbsnp-pos")
-    if dbsnp_rsids:
-        logging.info("Loading dbsnp rsids map")
-        dbsnp_rsids_dict = pickle.load(open(dbsnp_rsids, 'rb'))
-    else:
-        logging.warning("--dbsnp-rsids not provided, skipping dbsnp rsids map loading")
-        dbsnp_rsids_dict = None
-    dbsnp_pos_dict = pickle.load(open(dbsnp_pos, 'rb'))
+
+    # Use DBSNPProcessor to load dbSNP mappings
+    dbsnp_processor = DBSNPProcessor(cache_dir="aux_files/hsa/sample_dbsnp")
+    dbsnp_processor.load_mapping()
+    dbsnp_rsids_dict, dbsnp_pos_dict = dbsnp_processor.get_dict_wrappers()
    
     # Load adapters config
     with open(adapters_config_path, 'r') as f:
