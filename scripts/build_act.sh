@@ -8,14 +8,15 @@ if [ ! -d "$DIR" ]; then
     exit 1
 fi
 
-METTA_FILES=$(find "$DIR" -maxdepth 2 -name "*.metta" | sort)
-METTA_COUNT=$(echo "$METTA_FILES" | grep -v "^$" | wc -l || echo 0)
+METTA_COUNT=$(find "$DIR" -maxdepth 2 -name "*.metta" | wc -l | tr -d '[:space:]')
 
 if [ "$METTA_COUNT" -eq 0 ]; then
     echo "Error: No .metta files found in '$DIR'."
     if [ "$DIR" == "output" ]; then
         echo "Hint: You might need to specify your data folder, e.g.:"
         echo "      bash scripts/build_act.sh output_human"
+    else
+        echo "Verify that the BioCypher generation generated .metta files."
     fi
     exit 1
 fi
@@ -35,7 +36,6 @@ fi
 export MORK_DATA_DIR=$(realpath "$DIR")
 
 echo "Building unified annotation.act from $METTA_COUNT files in $MORK_DATA_DIR"
-
 
 docker compose run --rm -T mork bash <<'EOF'
 set -euo pipefail
