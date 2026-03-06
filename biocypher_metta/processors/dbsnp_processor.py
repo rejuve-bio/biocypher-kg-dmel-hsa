@@ -69,7 +69,10 @@ class DBSNPProcessor:
             else:
                 return None
 
-        rsid_to_pos = self.mapping.get('rsid_to_pos', {})
+        if self._is_nested_format():
+            rsid_to_pos = self.mapping.get('rsid_to_pos', {})
+        else:
+            rsid_to_pos = self.mapping
         return rsid_to_pos.get(rsid)
 
     def get_rsid(self, chrom: str, pos: int) -> Optional[str]:
@@ -80,7 +83,11 @@ class DBSNPProcessor:
             else:
                 return None
 
-        pos_to_rsid = self.mapping.get('pos_to_rsid', {})
+        if self._is_nested_format():
+            pos_to_rsid = self.mapping.get('pos_to_rsid', {})
+        else:
+            # Legacy format doesn't have pos_to_rsid
+            return None
 
         # Try with provided chromosome format
         pos_key = f"{chrom}:{pos}"
@@ -96,6 +103,10 @@ class DBSNPProcessor:
 
         return None
 
+    def _is_nested_format(self) -> bool:
+        """Check if mapping uses nested format with rsid_to_pos/pos_to_rsid keys."""
+        return 'rsid_to_pos' in self.mapping or 'pos_to_rsid' in self.mapping
+
     def get_dict_wrappers(self):
         if not self.mapping:
             raise RuntimeError(
@@ -103,7 +114,14 @@ class DBSNPProcessor:
                 "Call load_mapping() first."
             )
 
-        return (
-            self.mapping.get('rsid_to_pos', {}),
-            self.mapping.get('pos_to_rsid', {})
-        )
+        if self._is_nested_format():
+            # New format: {"rsid_to_pos": {...}, "pos_to_rsid": {...}}
+            return (
+                self.mapping.get('rsid_to_pos', {}),
+                self.mapping.get('pos_to_rsid', {})
+            )
+        else:
+            # Legacy format: flat dict {rsid: {"chr": ..., "pos": ...}}
+            # Treat the whole mapping as rsid_to_pos; pos_to_rsid not available
+            print(f"{self.name}: Detected legacy flat format, using as rsid_to_pos")
+            return (self.mapping, {})
