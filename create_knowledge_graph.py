@@ -582,8 +582,13 @@ def main(
 
                 sp_adapters_config = Path(config['adapters_config'])
                 sp_schema_config = Path(config['schema_config'])
-                sp_dbsnp_cache_dir = config.get('dbsnp_cache_dir', '')
                 sp_is_sample = (dataset == 'sample')
+                sp_dbsnp_cache_dir = config.get('dbsnp_cache_dir', '')
+                if not sp_dbsnp_cache_dir:
+                    if sp_is_sample:
+                        sp_dbsnp_cache_dir = 'aux_files/hsa/sample_dbsnp'
+                    else:
+                        sp_dbsnp_cache_dir = '/mnt/hdd_2/kedist/rsids_map'
 
                 # Load dbSNP mappings via DBSNPProcessor
                 sp_dbsnp_rsids_dict, sp_dbsnp_pos_dict = _load_dbsnp(sp_dbsnp_cache_dir, is_sample=sp_is_sample)
@@ -681,14 +686,18 @@ def main(
             dbsnp_cache_dir = config.get('dbsnp_cache_dir', '')
 
     # Load dbSNP mappings via DBSNPProcessor
-    # For species mode: dbsnp_cache_dir and is_sample come from species_config.yaml
-    # For manual mode: dbsnp_cache_dir from --dbsnp-cache-dir CLI arg, sample detection from config filename
+    # Determine sample vs full, and resolve dbsnp_cache_dir if not set
     if not species_mode:
-        # Manual mode: use CLI arg or default to sample cache
         is_sample_config = 'sample' in str(adapters_config).lower()
-        dbsnp_cache_dir = dbsnp_cache_dir or 'aux_files/hsa/sample_dbsnp'
     else:
         is_sample_config = (dataset == 'sample')
+
+    if not dbsnp_cache_dir:
+        if is_sample_config:
+            dbsnp_cache_dir = 'aux_files/hsa/sample_dbsnp'
+        else:
+            # Full config: use server cache
+            dbsnp_cache_dir = '/mnt/hdd_2/kedist/rsids_map'
     dbsnp_rsids_dict, dbsnp_pos_dict = _load_dbsnp(dbsnp_cache_dir, is_sample=is_sample_config)
 
     bc = get_writer(writer_type, output_dir, schema_config)
