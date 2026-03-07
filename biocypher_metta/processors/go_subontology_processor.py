@@ -11,6 +11,7 @@ Update strategy: Dependency-based (updates when GO.owl file changes)
 import rdflib
 from typing import Dict, Any, Optional
 from pathlib import Path
+from biocypher._logger import logger
 from .base_mapping_processor import BaseMappingProcessor
 
 
@@ -49,7 +50,7 @@ class GOSubontologyProcessor(BaseMappingProcessor):
         return self.graph
 
     def process_data(self, graph: rdflib.Graph) -> Dict[str, str]:
-        print(f"{self.name}: Extracting GO term namespaces...")
+        logger.info(f"{self.name}: Extracting GO term namespaces...")
 
         namespace_mapping = {}
         for subject, obj in graph.subject_objects(predicate=self.namespace_predicate):
@@ -60,13 +61,13 @@ class GOSubontologyProcessor(BaseMappingProcessor):
                     if namespace in [self.BIOLOGICAL_PROCESS, self.MOLECULAR_FUNCTION, self.CELLULAR_COMPONENT]:
                         namespace_mapping[go_id] = namespace
 
-        print(f"{self.name}: Extracted {len(namespace_mapping)} GO term subontologies")
+        logger.info(f"{self.name}: Extracted {len(namespace_mapping)} GO term subontologies")
 
         bp_count = sum(1 for v in namespace_mapping.values() if v == self.BIOLOGICAL_PROCESS)
         mf_count = sum(1 for v in namespace_mapping.values() if v == self.MOLECULAR_FUNCTION)
         cc_count = sum(1 for v in namespace_mapping.values() if v == self.CELLULAR_COMPONENT)
 
-        print(f"{self.name}: Distribution - BP: {bp_count}, MF: {mf_count}, CC: {cc_count}")
+        logger.info(f"{self.name}: Distribution - BP: {bp_count}, MF: {mf_count}, CC: {cc_count}")
 
         return namespace_mapping
 

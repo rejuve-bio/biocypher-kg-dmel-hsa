@@ -17,6 +17,7 @@ import re
 import tempfile
 from pathlib import Path
 from typing import Dict, Any, List, Optional
+from biocypher._logger import logger
 from .base_mapping_processor import BaseMappingProcessor
 
 
@@ -48,7 +49,7 @@ class EntrezEnsemblProcessor(BaseMappingProcessor):
     def fetch_data(self) -> Dict[str, Any]:
         temp_dir = Path(tempfile.mkdtemp())
 
-        print(f"{self.name}: Fetching NCBI Gene Info...")
+        logger.info(f"{self.name}: Fetching NCBI Gene Info...")
         gene_info_path = temp_dir / "gene_info.gz"
 
         response = requests.get(self.NCBI_GENE_INFO_URL, timeout=(30, 600), stream=True)
@@ -63,11 +64,11 @@ class EntrezEnsemblProcessor(BaseMappingProcessor):
                     downloaded += len(chunk)
                     mb_downloaded = downloaded // (1024 * 1024)
                     if mb_downloaded > 0 and downloaded % (1024 * 1024) < chunk_size:
-                        print(f"{self.name}: Downloaded {mb_downloaded} MB...")
+                        logger.info(f"{self.name}: Downloaded {mb_downloaded} MB...")
 
-        print(f"{self.name}: NCBI Gene Info downloaded successfully")
+        logger.info(f"{self.name}: NCBI Gene Info downloaded successfully")
 
-        print(f"{self.name}: Fetching GENCODE annotations (large file, ~60MB compressed)...")
+        logger.info(f"{self.name}: Fetching GENCODE annotations (large file, ~60MB compressed)...")
         gencode_path = temp_dir / "gencode.gtf.gz"
 
         response = requests.get(self.GENCODE_URL, timeout=(30, 900), stream=True)
@@ -81,9 +82,9 @@ class EntrezEnsemblProcessor(BaseMappingProcessor):
                     downloaded += len(chunk)
                     mb_downloaded = downloaded // (1024 * 1024)
                     if mb_downloaded > 0 and mb_downloaded % 10 == 0 and downloaded % (10 * 1024 * 1024) < chunk_size:
-                        print(f"{self.name}: Downloaded {mb_downloaded} MB...")
+                        logger.info(f"{self.name}: Downloaded {mb_downloaded} MB...")
 
-        print(f"{self.name}: GENCODE annotations downloaded successfully ({downloaded // (1024 * 1024)} MB)")
+        logger.info(f"{self.name}: GENCODE annotations downloaded successfully ({downloaded // (1024 * 1024)} MB)")
 
         return {
             'gene_info_path': str(gene_info_path),
@@ -97,7 +98,7 @@ class EntrezEnsemblProcessor(BaseMappingProcessor):
         temp_dir = Path(raw_data['temp_dir'])
 
         try:
-            print(f"{self.name}: Parsing NCBI Gene Info (streaming)...")
+            logger.info(f"{self.name}: Parsing NCBI Gene Info (streaming)...")
             entrez_to_symbol = {}
             gene_aliases = {}
 
@@ -107,7 +108,7 @@ class EntrezEnsemblProcessor(BaseMappingProcessor):
                         continue
 
                     if line_num % 10000 == 0:
-                        print(f"{self.name}: Processed {line_num:,} lines from Gene Info...")
+                        logger.info(f"{self.name}: Processed {line_num:,} lines from Gene Info...")
 
                     fields = line.split('\t')
                     if len(fields) < 16:
@@ -156,10 +157,10 @@ class EntrezEnsemblProcessor(BaseMappingProcessor):
                         if hgnc:
                             gene_aliases[hgnc] = complete_synonyms
 
-            print(f"{self.name}: Found {len(entrez_to_symbol)} Entrez-HGNC mappings")
-            print(f"{self.name}: Built {len(gene_aliases)} gene alias entries")
+            logger.info(f"{self.name}: Found {len(entrez_to_symbol)} Entrez-HGNC mappings")
+            logger.info(f"{self.name}: Built {len(gene_aliases)} gene alias entries")
 
-            print(f"{self.name}: Parsing GENCODE annotations (streaming, this may take a few minutes)...")
+            logger.info(f"{self.name}: Parsing GENCODE annotations (streaming, this may take a few minutes)...")
             symbol_to_ensembl = {}
 
             with gzip.open(gencode_path, 'rt', encoding='utf-8') as f:
@@ -168,7 +169,7 @@ class EntrezEnsemblProcessor(BaseMappingProcessor):
                         continue
 
                     if line_num % 100000 == 0:
-                        print(f"{self.name}: Processed {line_num:,} lines from GENCODE...")
+                        logger.info(f"{self.name}: Processed {line_num:,} lines from GENCODE...")
 
                     fields = line.split('\t')
                     if len(fields) < 9:
@@ -192,9 +193,9 @@ class EntrezEnsemblProcessor(BaseMappingProcessor):
 
                     symbol_to_ensembl[gene_name] = ensembl_id
 
-            print(f"{self.name}: Found {len(symbol_to_ensembl)} HGNC-Ensembl mappings")
+            logger.info(f"{self.name}: Found {len(symbol_to_ensembl)} HGNC-Ensembl mappings")
 
-            print(f"{self.name}: Creating Entrez-Ensembl mappings...")
+            logger.info(f"{self.name}: Creating Entrez-Ensembl mappings...")
             entrez_to_ensembl = {}
 
             for entrez_id, symbol in entrez_to_symbol.items():
@@ -202,7 +203,7 @@ class EntrezEnsemblProcessor(BaseMappingProcessor):
                     ensembl_id = symbol_to_ensembl[symbol]
                     entrez_to_ensembl[entrez_id] = ensembl_id
 
-            print(f"{self.name}: Created {len(entrez_to_ensembl)} Entrez-Ensembl mappings")
+            logger.info(f"{self.name}: Created {len(entrez_to_ensembl)} Entrez-Ensembl mappings")
 
             return {
                 'entrez_to_ensembl': entrez_to_ensembl,
@@ -210,7 +211,7 @@ class EntrezEnsemblProcessor(BaseMappingProcessor):
             }
 
         finally:
-            print(f"{self.name}: Cleaning up temporary files...")
+            logger.info(f"{self.name}: Cleaning up temporary files...")
             if gene_info_path.exists():
                 gene_info_path.unlink()
             if gencode_path.exists():
@@ -232,7 +233,7 @@ class EntrezEnsemblProcessor(BaseMappingProcessor):
         if self._is_nested_format():
             return self.mapping['entrez_to_ensembl']
         # Old flat format (legacy cache) — force re-fetch
-        print(f"{self.name}: Detected legacy flat mapping format, re-fetching...")
+        logger.info(f"{self.name}: Detected legacy flat mapping format, re-fetching...")
         self.update_mapping(force=True)
         return self.mapping['entrez_to_ensembl']
 
@@ -244,7 +245,7 @@ class EntrezEnsemblProcessor(BaseMappingProcessor):
         if self._is_nested_format():
             return self.mapping.get('gene_aliases', {})
         # Old flat format — force re-fetch
-        print(f"{self.name}: Detected legacy flat mapping format, re-fetching...")
+        logger.info(f"{self.name}: Detected legacy flat mapping format, re-fetching...")
         self.update_mapping(force=True)
         return self.mapping.get('gene_aliases', {})
 

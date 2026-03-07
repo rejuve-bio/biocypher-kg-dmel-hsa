@@ -14,6 +14,7 @@ import requests
 import csv
 from io import StringIO
 from typing import Dict, Any, Optional
+from biocypher._logger import logger
 from .base_mapping_processor import BaseMappingProcessor
 
 
@@ -39,7 +40,7 @@ class HGNCProcessor(BaseMappingProcessor):
         return [self.HGNC_API_URL]
 
     def fetch_data(self) -> str:
-        print(f"{self.name}: Fetching data from HGNC API...")
+        logger.info(f"{self.name}: Fetching data from HGNC API...")
         response = requests.get(self.HGNC_API_URL, timeout=30)
         response.raise_for_status()
         return response.text
@@ -47,7 +48,7 @@ class HGNCProcessor(BaseMappingProcessor):
     def process_data(self, raw_data: str) -> Dict[str, Dict[str, Any]]:
         reader = csv.DictReader(StringIO(raw_data), delimiter='\t')
 
-        print(f"{self.name}: Available columns: {reader.fieldnames}")
+        logger.info(f"{self.name}: Available columns: {reader.fieldnames}")
 
         column_mapping = {
             'symbol': ['Approved symbol', 'Symbol'],
@@ -62,9 +63,9 @@ class HGNCProcessor(BaseMappingProcessor):
             found = next((col for col in alternatives if col in reader.fieldnames), None)
             if found:
                 actual_columns[key] = found
-                print(f"{self.name}: Found column for {key}: {found}")
+                logger.info(f"{self.name}: Found column for {key}: {found}")
             else:
-                print(f"{self.name}: Could not find column for {key}")
+                logger.info(f"{self.name}: Could not find column for {key}")
 
         current_symbols = {}
         symbol_aliases = {}

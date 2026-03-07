@@ -12,6 +12,8 @@ import gzip
 from pathlib import Path
 from typing import Dict, Any, Optional
 
+from biocypher._logger import logger
+
 
 class DBSNPProcessor:
 
@@ -36,11 +38,11 @@ class DBSNPProcessor:
                 self.mapping = pickle.load(f)
         except (OSError, gzip.BadGzipFile):
             # Fall back to uncompressed
-            print(f"{self.name}: Loading uncompressed pickle file...")
+            logger.info(f"{self.name}: Loading uncompressed pickle file...")
             with open(self.mapping_file, 'rb') as f:
                 self.mapping = pickle.load(f)
 
-        print(f"{self.name}: Loaded mapping from {self.mapping_file}")
+        logger.info(f"{self.name}: Loaded mapping from {self.mapping_file}")
 
         # Show version info if available
         if self.version_file.exists():
@@ -55,7 +57,7 @@ class DBSNPProcessor:
                         updated_at = timestamp.strftime('%Y-%m-%d %H:%M:%S')
                     except (ValueError, TypeError):
                         updated_at = version_info.get('timestamp', 'Unknown')
-                    print(f"{self.name}: Cache last updated: {updated_at}")
+                    logger.info(f"{self.name}: Cache last updated: {updated_at}")
             except:
                 pass
 
@@ -123,5 +125,5 @@ class DBSNPProcessor:
         else:
             # Legacy format: flat dict {rsid: {"chr": ..., "pos": ...}}
             # Treat the whole mapping as rsid_to_pos; pos_to_rsid not available
-            print(f"{self.name}: Detected legacy flat format, using as rsid_to_pos")
+            logger.info(f"{self.name}: Detected legacy flat format, using as rsid_to_pos")
             return (self.mapping, {})

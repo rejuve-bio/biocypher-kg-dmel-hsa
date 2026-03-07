@@ -12,6 +12,7 @@ Update strategy: Time-based (every 7 days)
 import requests
 import gzip
 from typing import Dict, Any, Optional
+from biocypher._logger import logger
 from .base_mapping_processor import BaseMappingProcessor
 
 
@@ -36,8 +37,8 @@ class EnsemblUniProtProcessor(BaseMappingProcessor):
         return [self.UNIPROT_IDMAPPING_URL]
 
     def fetch_data(self) -> str:
-        print(f"{self.name}: Fetching UniProt ID mappings...")
-        print(f"{self.name}: This may take a while (file is ~500MB compressed)...")
+        logger.info(f"{self.name}: Fetching UniProt ID mappings...")
+        logger.info(f"{self.name}: This may take a while (file is ~500MB compressed)...")
 
         response = requests.get(self.UNIPROT_IDMAPPING_URL, timeout=600, stream=True)
         response.raise_for_status()
@@ -49,16 +50,16 @@ class EnsemblUniProtProcessor(BaseMappingProcessor):
                 chunks.append(chunk)
                 total_size += len(chunk)
                 if total_size % (10 * 1024 * 1024) == 0:
-                    print(f"{self.name}: Downloaded {total_size // (1024 * 1024)}MB...")
+                    logger.info(f"{self.name}: Downloaded {total_size // (1024 * 1024)}MB...")
 
         compressed_data = b''.join(chunks)
-        print(f"{self.name}: Decompressing...")
+        logger.info(f"{self.name}: Decompressing...")
         data = gzip.decompress(compressed_data).decode('utf-8')
 
         return data
 
     def process_data(self, raw_data: str) -> Dict[str, str]:
-        print(f"{self.name}: Parsing ID mappings...")
+        logger.info(f"{self.name}: Parsing ID mappings...")
 
         ensembl_to_uniprot = {}
         line_count = 0
@@ -66,7 +67,7 @@ class EnsemblUniProtProcessor(BaseMappingProcessor):
         for line in raw_data.split('\n'):
             line_count += 1
             if line_count % 1000000 == 0:
-                print(f"{self.name}: Processed {line_count // 1000000}M lines...")
+                logger.info(f"{self.name}: Processed {line_count // 1000000}M lines...")
 
             if not line.strip():
                 continue
@@ -85,7 +86,7 @@ class EnsemblUniProtProcessor(BaseMappingProcessor):
                     ensembl_to_uniprot[base_ensembl] = uniprot_id
                     ensembl_to_uniprot[external_id] = uniprot_id
 
-        print(f"{self.name}: Created {len(ensembl_to_uniprot)} Ensembl-UniProt mappings")
+        logger.info(f"{self.name}: Created {len(ensembl_to_uniprot)} Ensembl-UniProt mappings")
 
         return ensembl_to_uniprot
 
