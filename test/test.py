@@ -240,7 +240,7 @@ class TestBiocypherKG:
                 sample_edge = next(adapter.get_edges(), None)
 
                 #rule for sparse adapters - expected to be empty with small sample data
-                sparse_adapters = ["overlap", "uniprot_has_xref", "uniprot_chebi"]
+                sparse_adapters = ["overlap", "uniprot_has_xref", "uniprot_dbxref", "uniprot_chebi"]
                 if not sample_edge and any(sparse in adapter_name for sparse in sparse_adapters):
                     logging.warning(f"No edges found for sparse adapter '{adapter_name}'. This is expected with the current sample data.")
                     continue
