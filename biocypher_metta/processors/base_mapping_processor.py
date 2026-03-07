@@ -187,7 +187,11 @@ class BaseMappingProcessor(ABC):
             self.save_mapping()
             self.save_version_info()
 
-            logger.info(f"{self.name}: Successfully updated mapping with {len(self.mapping)} entries.")
+            if self.mapping and all(isinstance(v, dict) for v in self.mapping.values()):
+                total = sum(len(v) for v in self.mapping.values())
+                logger.info(f"{self.name}: Successfully updated mapping with {total} entries across {len(self.mapping)} sub-mappings.")
+            else:
+                logger.info(f"{self.name}: Successfully updated mapping with {len(self.mapping)} entries.")
             return True
 
         except Exception as e:
@@ -219,7 +223,12 @@ class BaseMappingProcessor(ABC):
             logger.info(f"{self.name}: Re-saving as compressed file...")
             self.save_mapping()
 
-        logger.info(f"{self.name}: Loaded mapping from {self.mapping_file} ({len(self.mapping)} entries)")
+        # For nested mappings (e.g. HGNC with sub-dicts), show total entries across all sub-dicts
+        if self.mapping and all(isinstance(v, dict) for v in self.mapping.values()):
+            total = sum(len(v) for v in self.mapping.values())
+            logger.info(f"{self.name}: Loaded mapping from {self.mapping_file} ({total} entries across {len(self.mapping)} sub-mappings)")
+        else:
+            logger.info(f"{self.name}: Loaded mapping from {self.mapping_file} ({len(self.mapping)} entries)")
 
         version_info = self._load_version_info()
         if version_info and 'timestamp' in version_info:
