@@ -8,7 +8,7 @@ if [ ! -d "$DIR" ]; then
     exit 1
 fi
 
-METTA_COUNT=$(find "$DIR" -maxdepth 2 -name "*.metta" | wc -l | tr -d '[:space:]')
+METTA_COUNT=$(find "$DIR" -name "*.metta" | wc -l | tr -d '[:space:]')
 
 if [ "$METTA_COUNT" -eq 0 ]; then
     echo "Error: No .metta files found in '$DIR'."
@@ -24,7 +24,7 @@ fi
 ACT_FILE="$DIR/annotation.act"
 
 if [ -f "$ACT_FILE" ]; then
-    NEWER_SOURCE=$(find "$DIR" -maxdepth 2 -name "*.metta" -newer "$ACT_FILE" -print -quit)
+    NEWER_SOURCE=$(find "$DIR" -name "*.metta" -newer "$ACT_FILE" -print -quit)
     
     if [ -z "$NEWER_SOURCE" ]; then
         echo "annotation.act is up to date; no rebuild needed."
