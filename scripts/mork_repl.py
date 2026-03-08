@@ -16,7 +16,7 @@ def run_mork_query(target_space, pattern, template, data_dir, format_type):
         metta_files = []
         for root, _, files in os.walk(host_data_dir):
             for f in files:
-                if f.endswith(".metta") and f not in ("query.metta", "q2.metta"):
+                if f.endswith(".metta") and "query.metta" not in f and not f.startswith("q"):
                     rel_path = os.path.relpath(os.path.join(root, f), host_data_dir)
                     metta_files.append(f"/app/data/{rel_path}")
         aux_flags = " ".join([f'--aux-path "{f}"' for f in metta_files])
@@ -28,7 +28,7 @@ def run_mork_query(target_space, pattern, template, data_dir, format_type):
         paths_files = []
         for root, _, files in os.walk(host_data_dir):
             for f in files:
-                if f.endswith(".paths"):
+                if f.endswith(".paths") and "query" not in f and not f.startswith("q"):
                     rel_path = os.path.relpath(os.path.join(root, f), host_data_dir)
                     paths_files.append(f"/app/data/{rel_path}")
         
