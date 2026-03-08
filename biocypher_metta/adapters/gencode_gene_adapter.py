@@ -1,7 +1,12 @@
 import gzip
 from biocypher_metta.adapters import Adapter
 from biocypher_metta.adapters.helpers import check_genomic_location
-# Example genocde vcf input file:
+from biocypher_metta.adapters.hgnc_processor import HGNCSymbolProcessor  
+
+# Human data:
+# https://www.gencodegenes.org/human/
+
+# Example gencode vcf input file:
 # ##description: evidence-based annotation of the human genome (GRCh38), version 42 (Ensembl 108)
 # ##provider: GENCODE
 # ##contact: gencode-help@ebi.ac.uk
@@ -12,27 +17,58 @@ from biocypher_metta.adapters.helpers import check_genomic_location
 # chr1    HAVANA  exon    11869   12227   .       +       .       gene_id "ENSG00000290825.1"; transcript_id "ENST00000456328.2"; gene_type "lncRNA"; gene_name "DDX11L2"; transcript_type "lncRNA"; transcript_name "DDX11L2-202"; exon_number 1; exon_id "ENSE00002234944.1"; level 2; transcript_support_level "1"; tag "basic"; tag "Ensembl_canonical"; havana_transcript "OTTHUMT00000362751.1";
 # chr1    HAVANA  exon    12613   12721   .       +       .       gene_id "ENSG00000290825.1"; transcript_id "ENST00000456328.2"; gene_type "lncRNA"; gene_name "DDX11L2"; transcript_type "lncRNA"; transcript_name "DDX11L2-202"; exon_number 2; exon_id "ENSE00003582793.1"; level 2; transcript_support_level "1"; tag "basic"; tag "Ensembl_canonical"; havana_transcript "OTTHUMT00000362751.1";
 
+# Mouse data:
+# https://www.gencodegenes.org/mouse/
+
+
+# Fly data:
+# https://ftp.ebi.ac.uk/ensemblgenomes/pub/metazoa/current/gtf/drosophila_melanogaster/
+
+# Example gencode vcf input file:
+# Dmel:
+# 3R	FlyBase	gene	17750129	17763188	.	-	.	gene_id "FBgn0038542"; gene_name "TyrR"; gene_source "FlyBase"; gene_biotype "protein_coding";
+# 3R	FlyBase	transcript	17750129	17758978	.	-	.	gene_id "FBgn0038542"; transcript_id "FBtr0344474"; gene_name "TyrR"; gene_source "FlyBase"; gene_biotype "protein_coding"; transcript_name "TyrR-RB"; transcript_source "FlyBase"; transcript_biotype "protein_coding";
+# 3R	FlyBase	exon	17758709	17758978	.	-	.	gene_id "FBgn0038542"; transcript_id "FBtr0344474"; exon_number "1"; gene_name "TyrR"; gene_source "FlyBase"; gene_biotype "protein_coding"; transcript_name "TyrR-RB"; transcript_source "FlyBase"; transcript_biotype "protein_coding"; exon_id "FBtr0344474-E1";
+# 3R	FlyBase	exon	17757024	17757709	.	-	.	gene_id "FBgn0038542"; transcript_id "FBtr0344474"; exon_number "2"; gene_name "TyrR"; gene_source "FlyBase"; gene_biotype "protein_coding"; transcript_name "TyrR-RB"; transcript_source "FlyBase"; transcript_biotype "protein_coding"; exon_id "FBtr0344474-E2";
+
+# dmelSummaries: table
+#FBgn_ID	Gene_Symbol	Summary_Source	Summary
+
 
 class GencodeGeneAdapter(Adapter):
-    ALLOWED_KEYS = ['gene_id', 'gene_type', 'gene_name',
+    CURIE_PREFIX = {
+        7227: 'FlyBase',
+        9606: 'ENSEMBL'
+    }
+
+    ALLOWED_KEYS = ['gene_id', 'gene_type', 'gene_biotype', 'gene_name',
                     'transcript_id', 'transcript_type', 'transcript_name', 'hgnc_id']
     INDEX = {'chr': 0, 'type': 2, 'coord_start': 3, 'coord_end': 4, 'info': 8}
 
-    def __init__(self, write_properties, add_provenance, filepath=None, 
-                 gene_alias_file_path=None, chr=None, start=None, end=None):
+    def __init__(self, write_properties, add_provenance, taxon_id, filepath, label,
+                 gene_alias_file_path, chr=None, start=None, end=None):
 
         self.filepath = filepath
         self.chr = chr
         self.start = start
         self.end = end
-        self.label = 'gene'
+        self.label = label
+        self.taxon_id = taxon_id
         self.dataset = 'gencode_gene'
         self.gene_alias_file_path = gene_alias_file_path
         self.source = 'GENCODE'
-        self.version = 'v44'
-        self.source_url = 'https://www.gencodegenes.org/human/'
+        self.version = 'v49'                                # file name:  gencode.v49.annotation.gtf.gz
+        version = str(filepath).split('/')[-1]
+        version = version.split('.')[1]
+        if version.startswith('v'):
+            self.version = version
+        self.source_url = 'https://www.gencodegenes.org/'
+        
+        self.hgnc_processor = HGNCSymbolProcessor()
+        self.hgnc_processor.update_hgnc_data()
 
         super(GencodeGeneAdapter, self).__init__(write_properties, add_provenance)
+ 
 
     def parse_info_metadata(self, info):
         parsed_info = {}
@@ -53,12 +89,15 @@ class GencodeGeneAdapter(Adapter):
                 split_dbxrefs = dbxrefs.split('|')
                 hgnc = ''
                 ensembl = ''
+                flybase = ''                    # NEEED TO CHANGE THIS!
                 for ref in split_dbxrefs:
                     if ref.startswith('HGNC:'):
                         hgnc = ref[5:]
                     if ref.startswith('Ensembl:'):
                         ensembl = ref[8:]
-                if ensembl or hgnc:
+                    if ref.upper().startswith('FLYBASE:'):
+                        flybase = ref[8:]
+                if ensembl or hgnc or flybase:
                     complete_synonyms = []
                     complete_synonyms.append(symbol)
                     for i in synonyms.split('|'):
@@ -78,11 +117,15 @@ class GencodeGeneAdapter(Adapter):
                         alias_dict[ensembl] = complete_synonyms
                     if hgnc:
                         alias_dict[hgnc] = complete_synonyms
-
+                    if flybase:
+                        complete_synonyms.append(flybase)
+                        alias_dict[flybase] = complete_synonyms
         return alias_dict
 
     def get_nodes(self):
         alias_dict = self.get_gene_alias()
+        not_processed = 0
+        processed_records = 0
         with gzip.open(self.filepath, 'rt') as input:
             for line in input:
                 if line.startswith('#'):
@@ -92,36 +135,61 @@ class GencodeGeneAdapter(Adapter):
                     info = self.parse_info_metadata(
                         split_line[GencodeGeneAdapter.INDEX['info']:])
                     gene_id = info['gene_id']
-                    id = gene_id.split('.')[0]
-                    alias = alias_dict.get(id)
+                    raw_id = gene_id.split('.')[0]
+                    
+                    # Determine CURIE prefix
+                    id_prefix = GencodeGeneAdapter.CURIE_PREFIX[self.taxon_id]
+                    id = f"{id_prefix}:{raw_id}"
+                    if gene_id.endswith('_PAR_Y'):
+                        id = f"{id_prefix}:{raw_id}_PAR_Y"
+
+                    alias = alias_dict.get(raw_id)
                     if not alias:
                         hgnc_id = info.get('hgnc_id')
                         if hgnc_id:
-                            alias = alias_dict.get(hgnc_id)
-                    if gene_id.endswith('_PAR_Y'):
-                        id = id + '_PAR_Y'
-
+                            alias = alias_dict.get(hgnc_id.replace('HGNC:', ''))
+                    
                     chr = split_line[GencodeGeneAdapter.INDEX['chr']]
                     start = int(split_line[GencodeGeneAdapter.INDEX['coord_start']])
                     end = int(split_line[GencodeGeneAdapter.INDEX['coord_end']])
+                    
+                    gene_name = info.get('gene_name')
+                    if not gene_name:
+                        # print(f"No gene name found for gene {gene_id}. Invalid record: {info}. Skipping it.")
+                        not_processed += 1
+                        continue
+
+                    if self.taxon_id == 9606:       # human
+                        result = self.hgnc_processor.process_identifier(gene_name)
+                    elif self.taxon_id == 7227:     # fly  I'll change this soon  --> TODO: fly and other organisms don't have HGNC IDs
+                        result = {
+                            'status': 'current',
+                            'original': gene_name,
+                            'current': gene_name
+                        }                    
                     props = {}
                     try:
                         if check_genomic_location(self.chr, self.start, self.end, chr, start, end):
                             if self.write_properties:
+                                gene_type_val = info.get('gene_type')
                                 props = {
-                                    # 'gene_id': gene_id, # TODO should this be included?
-                                    'gene_type': info['gene_type'],
-                                    'chr': chr,
-                                    'start': start,
-                                    'end': end,
-                                    'gene_name': info['gene_name'],
-                                    'synonyms': alias
+                                    'gene_type': gene_type_val if gene_type_val is not None else info['gene_biotype'],
+                                    'chr': chr if chr else 'unknown',
+                                    'start': start if start else 'unknown',
+                                    'end': end if end else 'unknown',
+                                    'gene_name': 'unknown' if result['status'] == 'unknown' or result['status'] == 'ensembl_only' else result['current'],
+                                    'synonym': alias
                                 }
+                                if result['status'] == 'updated':
+                                    props['old_gene_name'] = result['original']
                                 if self.add_provenance:
                                     props['source'] = self.source
                                     props['source_url'] = self.source_url
-
+                            processed_records += 1
                             yield id, self.label, props
-                    except:
-                        print(
-                            f'fail to process for label to load: {self.label}, type to load: {self.type}, data: {line}')
+                        else:
+                            not_processed += 1
+                    except Exception as e:
+                        print(f'Failed to process line: {line}\nError: {str(e)}')
+                        not_processed += 1
+        print(f"Not processed records: {not_processed} out of {processed_records} genes included in the BioAS.")

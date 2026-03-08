@@ -2,7 +2,11 @@ import gzip
 import os
 import pickle
 from biocypher_metta.adapters import Adapter
-from biocypher_metta.adapters.helpers import build_regulatory_region_id, check_genomic_location
+from biocypher_metta.adapters.helpers import build_regulatory_region_id, check_genomic_location, to_float
+
+# There are data for CEL, DMEL MMU, RNO & others, but the site is frequently unavailable :-()
+# Human data:
+# https://enhanceratlas.org/downloadv2.php
 
 # Example enhancer atlas input file:
 # enhancer signal - enrichment score calculated as the combination of enrichment scores from individual tracks.
@@ -16,7 +20,7 @@ from biocypher_metta.adapters.helpers import build_regulatory_region_id, check_g
 # chr1	902180	902820	10.3902750575485
 
 # enhancer_gene_file
-# the score is a predition score of the enhancer-gene interaction.
+# the score is a prediction score of the enhancer-gene interaction.
 # predicted the target genes of enhancers using IM-PET algorithm.
 
 # chr1:874840-876520_ENSG00000225880$LINC00115$chr1$762902$-	1.104330
@@ -30,8 +34,8 @@ class EnhancerAtlasAdapter(Adapter):
     INDEX = {'chr': 0, 'coord_start': 1, 'coord_end': 2, 'snp': 7}
 
     def __init__(self, enhancer_filepath, enhancer_gene_filepath, tissue_to_ontology_filepath, 
-                 write_properties, add_provenance, 
-                 type='enhancer', input_label='enhancer',
+                 write_properties, add_provenance, taxon_id, label,
+                 type='enhancer',
                  chr=None, start=None, end=None):
         self.enhancer_filepath = enhancer_filepath
         self.enhancer_gene_filepath = enhancer_gene_filepath
@@ -39,10 +43,11 @@ class EnhancerAtlasAdapter(Adapter):
         self.chr = chr
         self.start = start
         self.end = end
-        self.label = input_label
+        self.label = label
         self.type = type
+        self.taxon_id = taxon_id
 
-        self.source = 'Enancer Atlas'
+        self.source = 'Enhancer Atlas'
         self.version = '2.0'
         self.source_url = 'http://enhanceratlas.org/downloadv2.php'
 
@@ -52,8 +57,8 @@ class EnhancerAtlasAdapter(Adapter):
         enhancer_info = info.split('_')[0]
         chr = enhancer_info.split(':')[0]
         start = int(enhancer_info.split(':')[1].split('-')[0]) + 1 #+1 since it is 0-based genomic coordinate
-        end = int(enhancer_info.split(':')[1].split('-')[1]) + 1
-        gene = info.split('_')[1].split('$')[0]
+        end = int(enhancer_info.split(':')[1].split('-')[1])
+        gene = f"ENSEMBL:{info.split('_')[1].split('$')[0]}"
         return chr, start, end, gene
     
     def get_nodes(self):
@@ -62,8 +67,9 @@ class EnhancerAtlasAdapter(Adapter):
                 info = line.strip().split('\t')
                 chr = info[EnhancerAtlasAdapter.INDEX['chr']]
                 start = int(info[EnhancerAtlasAdapter.INDEX['coord_start']]) + 1 #+1 since it is 0-based genomic coordinate
-                end = int(info[EnhancerAtlasAdapter.INDEX['coord_end']]) + 1
-                enhancer_region_id = build_regulatory_region_id(chr, start, end)
+                end = int(info[EnhancerAtlasAdapter.INDEX['coord_end']])
+                #CURIE format for enhancer region ID
+                enhancer_region_id = f"SO:{build_regulatory_region_id(chr, start, end)}"
                 
                 if check_genomic_location(self.chr, self.start, self.end, chr, start, end):
                     props = {}
@@ -92,8 +98,9 @@ class EnhancerAtlasAdapter(Adapter):
                         info = line.strip().split('\t')
                         chr, start, end, gene = self.parse_enhancer_gene(line)
                         if check_genomic_location(self.chr, self.start, self.end, chr, start, end):
-                            enhancer_region_id = build_regulatory_region_id(chr, start, end)
-                            score = float(info[1])
+                            # CURIE format for enhancer region ID
+                            enhancer_region_id = f"SO:{build_regulatory_region_id(chr, start, end)}"
+                            score = to_float(info[1])
                             props = {}
                             if self.write_properties:
                                 props['biological_context'] = biological_context
