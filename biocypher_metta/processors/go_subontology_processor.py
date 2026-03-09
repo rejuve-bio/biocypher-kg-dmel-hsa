@@ -25,7 +25,7 @@ class GOSubontologyProcessor(BaseMappingProcessor):
 
     def __init__(
         self,
-        cache_dir: str = 'aux_files/go_subontology',
+        cache_dir: str = 'aux_files/hsa/go_subontology',
         dependency_file: Optional[str] = None
     ):
         super().__init__(

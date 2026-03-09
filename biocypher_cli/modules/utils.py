@@ -71,7 +71,7 @@ def find_aux_files(organism: str = None) -> Dict[str, str]:
         "Human - Entrez-Ensembl Processor Cache": str(aux_dir / "hsa" / "entrez_ensembl" / "entrez_ensembl_mapping.pkl"),
         "Human - Ensembl-UniProt Processor Cache": str(aux_dir / "hsa" / "ensembl_uniprot" / "ensembl_uniprot_mapping.pkl"),
         "Human - dbSNP Processor Cache": str(aux_dir / "hsa" / "sample_dbsnp" / "dbsnp_mapping.pkl"),
-        "GO Subontology Processor Cache": str(aux_dir / "go_subontology" / "go_subontology_mapping.pkl"),
+        "GO Subontology Processor Cache": str(aux_dir / "hsa" / "go_subontology" / "go_subontology_mapping.pkl"),
     }
     if organism == "human":
         return {k: v for k, v in files.items() if k.startswith("Human")}
