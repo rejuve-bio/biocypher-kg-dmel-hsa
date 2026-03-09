@@ -1238,67 +1238,6 @@ promoter_ccre_associates_with_gene_eqtl:
   nodes: False
   edges: True
 
-
-
-promoter_ccre:
-  adapter:
-    module: biocypher_metta.adapters.candidate_cis_regulatory_promoter_adapter
-    cls: PromotercCREAdapter
-    args:
-      filepath: ./samples/hsa/cCRE/GRCh38-Closest-Genes-PC.tsv.gz
-      label: promoter
-      eqtl_filepath: ./samples/hsa/cCRE/sample-V4-hg38.Gene-Links.eQTLs.txt.gz
-      gtex_tissue_ontology_map: ./aux_files/hsa/gtex_tissues_to_ontology_map.pkl
-      taxon_id: 9606
-  outdir: ccre/promoter_ccre
-  nodes: True
-  edges: False
-
-promoter_ccre_associates_with_gene_nearest_gene:
-  adapter:
-    module: biocypher_metta.adapters.candidate_cis_regulatory_promoter_adapter
-    cls: PromotercCREAdapter
-    args:
-      filepath: ./samples/hsa/cCRE/GRCh38-Closest-Genes-All.tsv.gz
-      edge_type: nearest
-      label: promoter_gene
-      eqtl_filepath: ./samples/hsa/cCRE/sample-V4-hg38.Gene-Links.eQTLs.txt.gz
-      gtex_tissue_ontology_map: ./aux_files/hsa/gtex_tissues_to_ontology_map.pkl
-      taxon_id: 9606
-  outdir: ccre/promoter_ccre
-  nodes: False
-  edges: True
-
-promoter_ccre_associates_with_gene_nearest_gene_coding_only:
-  adapter:
-    module: biocypher_metta.adapters.candidate_cis_regulatory_promoter_adapter
-    cls: PromotercCREAdapter
-    args:
-      filepath: ./samples/hsa/cCRE/GRCh38-Closest-Genes-PC.tsv.gz
-      label: promoter_gene
-      edge_type: nearest
-      eqtl_filepath: ./samples/hsa/cCRE/sample-V4-hg38.Gene-Links.eQTLs.txt.gz
-      gtex_tissue_ontology_map: ./aux_files/hsa/gtex_tissues_to_ontology_map.pkl
-      taxon_id: 9606
-  outdir: ccre/promoter_ccre/coding_only
-  nodes: False
-  edges: True
-
-promoter_ccre_associates_with_gene_eqtl:
-  adapter:
-    module: biocypher_metta.adapters.candidate_cis_regulatory_promoter_adapter
-    cls: PromotercCREAdapter
-    args:
-      filepath: ./samples/hsa/cCRE/GRCh38-Closest-Genes-PC.tsv.gz
-      label: promoter_gene
-      edge_type: eqtl
-      eqtl_filepath: ./samples/hsa/cCRE/sample-V4-hg38.Gene-Links.eQTLs.txt.gz
-      gtex_tissue_ontology_map: ./aux_files/hsa/gtex_tissues_to_ontology_map.pkl
-      taxon_id: 9606
-  outdir: ccre/promoter_ccre/eqtl
-  nodes: False
-  edges: True
-
 proximal_enhancer_ccre:
   adapter:
     module: biocypher_metta.adapters.candidate_cis_regulatory_enhancer_adapter
